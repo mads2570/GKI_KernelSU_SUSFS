@@ -78,12 +78,12 @@ jobs:
       id: buildKernel
       continue-on-error: true
       run: |
-          cd "kernel-6.6"
+          cd kernel-6.6
           curl -LSs "https://raw.githubusercontent.com/WildKernels/Wild_KSU/wild/kernel/setup.sh" | bash -s wild
     
     - name: Apply SUSFS Patches for KernelSU Variants
       run: |
-          cd "kernel-6.6"
+          cd kernel-6.6
           
           # Apply core SUSFS patches
           cp ../susfs4ksu/kernel_patches/50_add_susfs_in_gki-${{ inputs.android_version }}-${{ inputs.kernel_version }}.patch ./kernel-6.6/
@@ -113,7 +113,7 @@ jobs:
 
     - name: Getting KernelSU Version
       run: |
-          cd "kernel-6.6/Wild_KSU/kernel"
+          cd kernel-6.6/Wild_KSU/kernel
           BASE_VERSION=10200
           COMMIT_COUNT=$(/usr/bin/git rev-list --count HEAD)
           KSU_VERSION=$(expr $COMMIT_COUNT "+" $BASE_VERSION)
