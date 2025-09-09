@@ -31,7 +31,15 @@ jobs:
         sudo aptitude install libssl-dev -y
 
     - name: Clone Kernel Source
-      run: git clone --depth=1 --single-branch -b ${{ inputs.BRANCH }} ${{ inputs.URL }} kernel-6.6
+      run: git clone --depth=1 --single-branch -b ${{ inputs.BRANCH }} ${{ inputs.URL }} kernel-6.6 
+         
+    - name: Set CONFIG Environment Variable
+      run: |
+          # Set CONFIG dynamically based on inputs values
+          CONFIG="${{ inputs.android_version }}-${{ inputs.kernel_version }}-${{ inputs.sub_level }}"
+
+          # Set CONFIG as an environment variable for future steps
+          echo "CONFIG=$CONFIG" >> $GITHUB_ENV  
 
     - name: Fetch toolchains
       working-directory: kernel-6.6
