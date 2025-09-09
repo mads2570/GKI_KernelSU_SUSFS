@@ -20,7 +20,7 @@ jobs:
     steps:
     - uses: actions/checkout@v4
       with:
-        path: A05
+        path: "$CONFIG"
         show-progress: false
         fetch-depth: 1
 
@@ -31,7 +31,7 @@ jobs:
         sudo aptitude install libssl-dev -y
 
     - name: Clone Kernel Source
-      run: git clone --depth=1 --single-branch -b ${{ inputs.BRANCH }} ${{ inputs.URL }} A05 
+      run: git clone --depth=1 --single-branch -b ${{ inputs.BRANCH }} ${{ inputs.URL }} 
          
     - name: Set CONFIG Environment Variable
       run: |
@@ -42,13 +42,19 @@ jobs:
           echo "CONFIG=$CONFIG" >> $GITHUB_ENV  
 
     - name: Fetch toolchains
-      working-directory: A05
       run: |
         aria2c https://github.com/rsuntkOrgs/android_kernel_samsung_a05m-6.6/releases/download/v1.0/xaa
         aria2c https://github.com/rsuntkOrgs/android_kernel_samsung_a05m-6.6/releases/download/v1.0/xab
         echo "INFO: Appending files and extracting ..."
         cat xaa xab > toolchains.tar.gz && tar -xf toolchains.tar.gz && rm toolchains.tar.gz xaa xab
         echo "INFO: Extraction operation is completed."
+
+    - name: Clone SUSFS and Patch Repos
+      run: |
+        git clone https://github.com/WildKernels/AnyKernel3.git -b gki-2.0 || true
+        git clone https://gitlab.com/simonpunk/susfs4ksu.git -b gki-android15-6.6 || true
+        git clone https://github.com/WildKernels/kernel_patches.git || true
+   
 
     - name: Prepare timezone fix
       run: |
@@ -68,115 +74,86 @@ jobs:
     - name: Build kernel
       id: buildKernel
       continue-on-error: true
-      working-directory: A05
       run: |
-          cd kernel-6.6
+          mkdir -p "$CONFIG"
+          cd "$CONFIG"
           curl -LSs "https://raw.githubusercontent.com/WildKernels/Wild_KSU/wild/kernel/setup.sh" | bash -s wild
-    - name: Clone SUSFS and Patch Repos
-      working-directory: A05
-      run: |
-        git clone https://github.com/WildKernels/AnyKernel3.git -b gki-2.0 || true
-        git clone https://gitlab.com/simonpunk/susfs4ksu.git -b gki-android15-6.6 || true
-        git clone https://github.com/WildKernels/kernel_patches.git || true
-
-
-    - name: Debug SUSFS patches and drivers directory
-      working-directory: A05
-      run: |
-        echo "Listing A05 contents:"
-        ls -l
-        echo "Listing susfs4ksu and kernel_patches contents:"
-        ls -l susfs4ksu/kernel_patches/ || true
-        ls -l kernel_patches/ || true
-        echo "Listing drivers directory:"
-        ls -l drivers/ || true
-
+    
     - name: Apply SUSFS Patches for KernelSU Variants
-      working-directory: A05
       run: |
-        # Fail if patch file is missing
-        if [ ! -f susfs4ksu/kernel_patches/50_add_susfs_in_gki-android15-6.6.patch ]; then
-          echo "Patch file missing: susfs4ksu/kernel_patches/50_add_susfs_in_gki-android15-6.6.patch"
-          exit 1
-        fi
-        # Fail if drivers directory is missing
-        if [ ! -d drivers ]; then
-          echo "drivers/ directory not found."
-          exit 127
-        fi
+          cd "$kernel-6.6"
+          
+          # Apply core SUSFS patches
+          cp ../susfs4ksu/kernel_patches/50_add_susfs_in_gki-${{ inputs.android_version }}-${{ inputs.kernel_version }}.patch ./kernel-6.6/
+          cd kernel-6.6
+          patch -p1 --forward < 50_add_susfs_in_gki-${{ inputs.android_version }}-${{ inputs.kernel_version }}.patch
+          cd ..
+          cp ../susfs4ksu/kernel_patches/fs/* ./kernel-6.6/fs/
+          cp ../susfs4ksu/kernel_patches/include/linux/* ./kernel-6.6/include/linux/
+          
+          # Apply KSU integration patches
+          cd ./Wild_KSU
+          cp ../../susfs4ksu/kernel_patches/KernelSU/10_enable_susfs_for_ksu.patch ./
+          patch -p1 --forward < 10_enable_susfs_for_ksu.patch || true
+          
+          # Apply compatibility fixes
+          cp ../../kernel_patches/wild/susfs_fix_patches/v1.5.9/fix_core_hook.c.patch ./
+          patch -p1 --forward --fuzz=3 < fix_core_hook.c.patch
+          
+          cp ../../kernel_patches/wild/susfs_fix_patches/v1.5.9/fix_rules.c.patch ./
+          patch -p1 --forward < fix_rules.c.patch
 
-        cp susfs4ksu/kernel_patches/50_add_susfs_in_gki-android15-6.6.patch ./kernel-6.6
-        cd kernel-6.6
-        patch -p1 --forward < 50_add_susfs_in_gki-android15-6.6.patch
-        cd ..
-        cp susfs4ksu/kernel_patches/fs/* ./kernel-6.6/fs
-        cp susfs4ksu/kernel_patches/include/linux/* ./kernel-6.6/include/linux
+          cp ../../kernel_patches/wild/susfs_fix_patches/v1.5.9/fix_sucompat.c.patch ./
+          patch -p1 --forward < fix_sucompat.c.patch
 
-        # Apply KSU integration patches
-        cd Wild_KSU
-        cp ../../susfs4ksu/kernel_patches/KernelSU/10_enable_susfs_for_ksu.patch ./
-        patch -p1 --forward < 10_enable_susfs_for_ksu.patch || true
-
-        # Apply compatibility fixes
-        cp ../../kernel_patches/wild/susfs_fix_patches/v1.5.9/fix_core_hook.c.patch ./
-        patch -p1 --forward --fuzz=3 < fix_core_hook.c.patch
-
-        cp ../../kernel_patches/wild/susfs_fix_patches/v1.5.9/fix_rules.c.patch ./
-        patch -p1 --forward < fix_rules.c.patch
-
-        cp ../../kernel_patches/wild/susfs_fix_patches/v1.5.9/fix_sucompat.c.patch ./
-        patch -p1 --forward < fix_sucompat.c.patch
-
-        cp ../../kernel_patches/wild/susfs_fix_patches/v1.5.9/fix_kernel_compat.c.patch ./
-        patch -p1 --forward < fix_kernel_compat.c.patch
+          cp ../../kernel_patches/wild/susfs_fix_patches/v1.5.9/fix_kernel_compat.c.patch ./
+          patch -p1 --forward < fix_kernel_compat.c.patch
 
     - name: Getting KernelSU Version
-      working-directory: A05
       run: |
-        cd kernel-6.6/Wild_KSU/kernel
-        BASE_VERSION=10200
-        COMMIT_COUNT=$(/usr/bin/git rev-list --count HEAD)
-        KSU_VERSION=$(expr $COMMIT_COUNT + $BASE_VERSION)
-        echo "KSUVER=$KSU_VERSION" >> $GITHUB_ENV
-
+          cd "$kernel-6.6/Wild_KSU/kernel"
+          BASE_VERSION=10200
+          COMMIT_COUNT=$(/usr/bin/git rev-list --count HEAD)
+          KSU_VERSION=$(expr $COMMIT_COUNT "+" $BASE_VERSION)
+          echo "KSUVER=$KSU_VERSION" >> $GITHUB_ENV
+          
     - name: Apply Hooks Patches
-      working-directory: A05
       run: |
-        cp ../../kernel_patches/wild/hooks/scope_min_manual_hooks_v1.4.patch ./
-        patch -p1 --forward -F 3 < scope_min_manual_hooks_v1.4.patch
+          cd "$CONFIG/kernel-6.6"
+          cp ../../kernel_patches/wild/hooks/scope_min_manual_hooks_v1.4.patch ./
+          patch -p1 --forward -F 3 < scope_min_manual_hooks_v1.4.patch
 
     - name: Apply Hide Stuff Patches
-      working-directory: A05
       run: |
-        cp ../../kernel_patches/69_hide_stuff.patch ./
-        patch -p1 --forward -F 3 < 69_hide_stuff.patch
+          cd "$CONFIG/kernel-6.6"
+          cp ../../kernel_patches/69_hide_stuff.patch ./
+          patch -p1 --forward -F 3 < 69_hide_stuff.patch
 
     - name: Fix WiFi and Bluetooth on Samsung 6.6 GKI devices
-      if: ${{ inputs.BRANCH == '6.6' }}
-      working-directory: A05
       run: |
-        SYMBOL_LIST=android/abi_gki_aarch64_galaxy
-        echo "kdp_set_cred_non_rcu" >> $SYMBOL_LIST
-        echo "kdp_usecount_dec_and_test" >> $SYMBOL_LIST
-        echo "kdp_usecount_inc" >> $SYMBOL_LIST
-
-        PATCH="../../kernel_patches/samsung/min_kdp/add-min_kdp-symbols.patch"
-        if patch -p1 --dry-run < $PATCH; then
-          patch -p1 --no-backup-if-mismatch < $PATCH
-        fi
-
-        cd drivers
-        cp "../../../kernel_patches/samsung/min_kdp/min_kdp.c" min_kdp.c
-        echo "obj-y += min_kdp.o" >> Makefile
+          SYMBOL_LIST=$CONFIG/kernel-6.6/android/abi_gki_aarch64_galaxy
+          echo "kdp_set_cred_non_rcu" >> $SYMBOL_LIST
+          echo "kdp_usecount_dec_and_test" >> $SYMBOL_LIST
+          echo "kdp_usecount_inc" >> $SYMBOL_LIST
+          
+          cd $CONFIG/kernel-6.6
+          PATCH="../../kernel_patches/samsung/min_kdp/add-min_kdp-symbols.patch"
+          if patch -p1 --dry-run < $PATCH; then
+            patch -p1 --no-backup-if-mismatch < $PATCH
+          fi
+          
+          cd drivers
+          cp "../../../kernel_patches/samsung/min_kdp/min_kdp.c" min_kdp.c
+          echo "obj-y += min_kdp.o" >> Makefile
 
     - name: Apply Kernel Configuration
-      working-directory: A05
       run: |
-        cd kernel-6.6
-        defconfig="./arch/arm64/configs/gki_defconfig"
-
+        cd "$CONFIG"
+          
+        defconfig="./kernel-6.6/arch/arm64/configs/gki_defconfig"
+          
         echo "Applying kernel configurations one by one..."
-
+          
         # KernelSU Core Configuration
         echo "CONFIG_KSU=y" >> "$defconfig"
         echo "CONFIG_KSU_KPROBES_HOOK=n" >> "$defconfig"
