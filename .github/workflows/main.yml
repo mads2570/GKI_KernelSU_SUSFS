@@ -72,11 +72,10 @@ jobs:
       run: |
           cd kernel-6.6
           curl -LSs "https://raw.githubusercontent.com/WildKernels/Wild_KSU/wild/kernel/setup.sh" | bash -s wild
-
+          cd ..
     - name: Clone SUSFS and Patch Repos
       working-directory: A05
       run: |
-        cd A05
         git clone https://github.com/WildKernels/AnyKernel3.git -b gki-2.0 || true
         git clone https://gitlab.com/simonpunk/susfs4ksu.git -b gki-android15-6.6 || true
         git clone https://github.com/WildKernels/kernel_patches.git || true
@@ -85,7 +84,6 @@ jobs:
     - name: Debug SUSFS patches and drivers directory
       working-directory: A05
       run: |
-        cd A05
         echo "Listing A05 contents:"
         ls -l
         echo "Listing susfs4ksu and kernel_patches contents:"
@@ -97,7 +95,6 @@ jobs:
     - name: Apply SUSFS Patches for KernelSU Variants
       working-directory: A05
       run: |
-        cd A05
         # Fail if patch file is missing
         if [ ! -f susfs4ksu/kernel_patches/50_add_susfs_in_gki-android15-6.6.patch ]; then
           echo "Patch file missing: susfs4ksu/kernel_patches/50_add_susfs_in_gki-android15-6.6.patch"
