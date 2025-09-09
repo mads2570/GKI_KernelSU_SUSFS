@@ -69,8 +69,6 @@ jobs:
 
     - name: Clone Kernel Source
       run: 
-          mkdir -p "$CONFIG"
-          cd "$CONFIG"
           git clone --depth=1 --single-branch -b ${{ inputs.BRANCH }} ${{ inputs.URL }} 
 
       
