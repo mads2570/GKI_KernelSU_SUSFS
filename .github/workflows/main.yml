@@ -20,7 +20,7 @@ jobs:
     steps:
     - uses: actions/checkout@v4
       with:
-        path: rootdir
+        path: A05
         show-progress: false
         fetch-depth: 1
 
@@ -72,7 +72,6 @@ jobs:
       run: |
           cd kernel-6.6
           curl -LSs "https://raw.githubusercontent.com/WildKernels/Wild_KSU/wild/kernel/setup.sh" | bash -s wild
-          cd ..
     - name: Clone SUSFS and Patch Repos
       working-directory: A05
       run: |
