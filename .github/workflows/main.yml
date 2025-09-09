@@ -74,8 +74,9 @@ jobs:
           curl -LSs "https://raw.githubusercontent.com/WildKernels/Wild_KSU/wild/kernel/setup.sh" | bash -s wild
 
     - name: Clone SUSFS and Patch Repos
-      working-directory: kernel-6.6
+      working-directory: A05
       run: |
+        cd kernel-6.6
         git clone https://github.com/WildKernels/AnyKernel3.git -b gki-2.0 || true
         git clone https://gitlab.com/simonpunk/susfs4ksu.git -b gki-android15-6.6 || true
         git clone https://github.com/WildKernels/kernel_patches.git || true
@@ -110,8 +111,8 @@ jobs:
         cd kernel-6.6
         patch -p1 --forward < 50_add_susfs_in_gki-android15-6.6.patch
         cd ..
-        cp susfs4ksu/kernel_patches/fs/* ./common/fs/
-        cp susfs4ksu/kernel_patches/include/linux/* ./common/include/linux/
+        cp susfs4ksu/kernel_patches/fs/* ./kernel-6.6/fs/
+        cp susfs4ksu/kernel_patches/include/linux/* ./kernel-6.6/include/linux/
 
         # Apply KSU integration patches
         cd Wild_KSU
