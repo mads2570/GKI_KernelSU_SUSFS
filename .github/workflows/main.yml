@@ -1,45 +1,73 @@
-name: Build Kernels
-
-permissions:
-  contents: write
-  actions: write
-
+name: Build Kernel
 on:
   workflow_dispatch:
+    inputs:
+      BRANCH:
+        description: Kernel branch
+        default: 'master'
+        required: true
+      URL:
+        description: Repository URL
+        default: 'https://github.com/mads2570/android_kernel_samsung_a05m-6.6.git'
+        required: true
+      KSU:
+        description: Add KernelSU support
+        type: boolean
 
 jobs:
-
-  build-a15-6-6:
-    uses: ./.github/workflows/kernel-a15-6-6.yml
-    secrets: inherit
-
-  release:
+  build:
     runs-on: ubuntu-latest
-    needs:
-      - build-a15-6-6
-    env:
-      GITHUB_TOKEN: ${{ secrets.MY_GITHUB_TOKEN }}
-      RELEASE_NAME: "GKI Kernels With WKSU & SUSFS v1.5.9"
-      RELEASE_BODY:
     steps:
-      - name: Maximize Build Space
-        uses: AdityaGarg8/remove-unwanted-software@v5
-        with:
-          # remove-dotnet: 'true'          # Frees ~2 GB
-          # remove-android: 'true'         # Frees ~9 GB
-          # remove-haskell: 'true'         # Frees ~5.2 GB
-          # remove-codeql: 'true'          # Frees ~5.4 GB
-          # remove-docker-images: 'true'   # Frees ~3.2 GB
-          # remove-large-packages: 'true'  # Frees ~3.1 GB
-          remove-swapfile: 'true'        # Frees ~4 GB
-          # remove-cached-tools: 'false'   # Avoid unless confirmed safe
-          verbose: 'true'                # Enable detailed logging
+    - uses: actions/checkout@v4
+      with:
+        path: rootdir
+        show-progress: false
+        fetch-depth: 1
 
-      - name: Checkout code
-        uses: actions/checkout@v4
+    - name: Prepare dependencies
+      run: |
+        sudo apt update -y
+        sudo apt install rsync bc cpio flex bison aptitude aria2 git python-is-python3 tar perl wget curl lz4 -y
+        sudo aptitude install libssl-dev -y
 
-      - name: Get commit hashes and generate commit URLs
-        run: |
+    - name: Clone Kernel Source
+      run: git clone --depth=1 --single-branch -b ${{ inputs.BRANCH }} ${{ inputs.URL }} kernel-6.6
+
+    - name: Fetch toolchains
+      working-directory: kernel-6.6
+      run: |
+        aria2c https://github.com/rsuntkOrgs/android_kernel_samsung_a05m-6.6/releases/download/v1.0/xaa
+        aria2c https://github.com/rsuntkOrgs/android_kernel_samsung_a05m-6.6/releases/download/v1.0/xab
+        echo "INFO: Appending files and extracting ..."
+        cat xaa xab > toolchains.tar.gz && tar -xf toolchains.tar.gz && rm toolchains.tar.gz xaa xab
+        echo "INFO: Extraction operation is completed."
+
+    - name: Prepare timezone fix
+      run: |
+        sudo rm /etc/localtime
+        sudo ln -s /usr/share/zoneinfo/Asia/Jakarta /etc/localtime
+
+    - name: Setup Java
+      uses: actions/setup-java@v5
+      with:
+        distribution: temurin
+        java-version: 21
+
+    - name: Setup Gradle
+      uses: gradle/actions/setup-gradle@v4
+
+    - name: Clone SUSFS and Patch Repos
+      working-directory: kernel-6.6
+      run: |
+        git clone https://github.com/WildKernels/AnyKernel3.git -b gki-2.0 || true
+        git clone https://gitlab.com/simonpunk/susfs4ksu.git -b gki-android15-6.6 || true
+        git clone https://github.com/WildKernels/kernel_patches.git || true
+
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Get commit hashes and generate commit URLs
+      run: |
           GITLAB_OWNER="simonpunk"
           GITLAB_REPO="susfs4ksu"
           
@@ -61,16 +89,16 @@ jobs:
             fi
           done
 
-      - name: Get KernelSU variant refs and links
-        run: |
+    - name: Get KernelSU variant refs and links
+      run: |
           # Get WKSU latest commit from wild branch
           WKSU_REF=$(git ls-remote "https://github.com/WildKernels/Wild_KSU.git" refs/heads/wild | awk '{print $1}')
           WKSU_URL="https://github.com/WildKernels/Wild_KSU/commit/$WKSU_REF"
           echo "WKSU_REF=$WKSU_REF" >> $GITHUB_ENV
           echo "WKSU_URL=$WKSU_URL" >> $GITHUB_ENV
 
-      - name: Generate and Create New Tag
-        run: |
+    - name: Generate and Create New Tag
+      run: |
             LATEST_TAG=$(gh api repos/${{ github.repository }}/tags --jq '.[0].name')
             if [ -z "$LATEST_TAG" ]; then
               LATEST_TAG="v1.5.9-r0"
@@ -84,14 +112,14 @@ jobs:
             git tag $NEW_TAG
             git push origin $NEW_TAG
 
-      - name: Download Artifacts
-        uses: actions/download-artifact@v4
-        with:
+    - name: Download Artifacts
+      uses: actions/download-artifact@v4
+      with:
           path: ./downloaded-artifacts
 
-      - name: Set release body
-        run: |
-          cat << 'EOF' > release_body.md
+    - name: Set release body
+      run: |
+         cat << 'EOF' > release_body.md
       
           **IMPORTANT DISCLAIMER**
           This software is provided for testing and educational purposes only. Use at your own risk.
@@ -129,17 +157,17 @@ jobs:
             -> gki-android15-6.6: [${{ env.COMMIT_HASH_gki_android15_6_6 }}](${{ env.COMMIT_URL_gki_android15_6_6 }})
           EOF
 
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
+         - name: Create GitHub Release
+         uses: softprops/action-gh-release@v2
+         with:
           tag_name: ${{ env.NEW_TAG }}
           prerelease: false
           files: ""
           name: ${{ env.RELEASE_NAME }}
           body_path: release_body.md
 
-      - name: Upload Release Assets
-        run: |
+         - name: Upload Release Assets
+         run: |
           for file in ./downloaded-artifacts/*/*; do
             if [ -d "$file" ]; then
               continue
@@ -148,13 +176,13 @@ jobs:
             gh release upload ${{ env.NEW_TAG }} "$file"
           done
 
-      - name: Display Files Uploaded
-        run: |
+         - name: Display Files Uploaded
+         run: |
           echo "GitHub release created with the following files:"
           ls ./downloaded-artifacts/**/*
             
-      - name: Send Telegram Notification
-        run: |
+         - name: Send Telegram Notification
+          run: |
           curl -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
             -F chat_id="${{ secrets.TELEGRAM_CHAT_ID }}" \
             -F message_thread_id="${{ secrets.TELEGRAM_TOPIC_ID_GKI }}" \
