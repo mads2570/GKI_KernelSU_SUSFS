@@ -46,13 +46,6 @@ jobs:
         cat xaa xab > toolchains.tar.gz && tar -xf toolchains.tar.gz && rm toolchains.tar.gz xaa xab
         echo "INFO: Extraction operation is completed."
 
-    - name: Clone SUSFS and Patch Repos
-      run: |
-        git clone https://github.com/WildKernels/AnyKernel3.git -b gki-2.0 || true
-        git clone https://gitlab.com/simonpunk/susfs4ksu.git -b gki-android15-6.6 || true
-        git clone https://github.com/WildKernels/kernel_patches.git || true
-   
-
     - name: Prepare timezone fix
       run: |
         sudo rm /etc/localtime
@@ -79,6 +72,12 @@ jobs:
           cd android_kernel_samsung_a05m-6.6/kernel-6.6
           curl -LSs "https://raw.githubusercontent.com/WildKernels/Wild_KSU/wild/kernel/setup.sh" | bash -s wild
     
+    - name: Clone SUSFS and Patch Repos
+      run: |
+        git clone https://github.com/WildKernels/AnyKernel3.git -b gki-2.0 || true
+        git clone https://gitlab.com/simonpunk/susfs4ksu.git -b gki-android15-6.6 || true
+        git clone https://github.com/WildKernels/kernel_patches.git || true
+   
     - name: Apply SUSFS Patches for KernelSU Variants
       run: |
   
