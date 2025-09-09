@@ -31,7 +31,7 @@ jobs:
         sudo aptitude install libssl-dev -y
 
     - name: Clone Kernel Source
-      run: git clone --depth=1 --single-branch -b ${{ inputs.BRANCH }} ${{ inputs.URL }} kernel-6.6 
+      run: git clone --depth=1 --single-branch -b ${{ inputs.BRANCH }} ${{ inputs.URL }} A05 
          
     - name: Set CONFIG Environment Variable
       run: |
