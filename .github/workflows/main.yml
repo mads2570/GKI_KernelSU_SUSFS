@@ -42,7 +42,7 @@ jobs:
           echo "CONFIG=$CONFIG" >> $GITHUB_ENV  
 
     - name: Fetch toolchains
-      working-directory: kernel-6.6
+      working-directory: A05
       run: |
         aria2c https://github.com/rsuntkOrgs/android_kernel_samsung_a05m-6.6/releases/download/v1.0/xaa
         aria2c https://github.com/rsuntkOrgs/android_kernel_samsung_a05m-6.6/releases/download/v1.0/xab
@@ -68,8 +68,9 @@ jobs:
     - name: Build kernel
       id: buildKernel
       continue-on-error: true
-      working-directory: kernel-6.6
+      working-directory: A05
       run: |
+          cd kernel-6.6
           curl -LSs "https://raw.githubusercontent.com/WildKernels/Wild_KSU/wild/kernel/setup.sh" | bash -s wild
 
     - name: Clone SUSFS and Patch Repos
@@ -139,7 +140,7 @@ jobs:
         echo "KSUVER=$KSU_VERSION" >> $GITHUB_ENV
 
     - name: Apply Hooks Patches
-      working-directory: kernel-6.6/common
+      working-directory: kernel-6.6
       run: |
         cp ../../kernel_patches/wild/hooks/scope_min_manual_hooks_v1.4.patch ./
         patch -p1 --forward -F 3 < scope_min_manual_hooks_v1.4.patch
@@ -154,7 +155,7 @@ jobs:
       if: ${{ inputs.BRANCH == '6.6' }}
       working-directory: kernel-6.6
       run: |
-        SYMBOL_LIST=kernel-6.6/android/abi_gki_aarch64_galaxy
+        SYMBOL_LIST=android/abi_gki_aarch64_galaxy
         echo "kdp_set_cred_non_rcu" >> $SYMBOL_LIST
         echo "kdp_usecount_dec_and_test" >> $SYMBOL_LIST
         echo "kdp_usecount_inc" >> $SYMBOL_LIST
@@ -171,7 +172,7 @@ jobs:
     - name: Apply Kernel Configuration
       working-directory: kernel-6.6
       run: |
-        defconfig="./kernel-6.6/arch/arm64/configs/gki_defconfig"
+        defconfig="./arch/arm64/configs/gki_defconfig"
 
         echo "Applying kernel configurations one by one..."
 
@@ -348,7 +349,7 @@ jobs:
 
     - name: Build Kernel
       run: |
-       cd android_kernel_samsung_a05m-6.6
+       cd A05
        bash build_kernel.sh
 
        
