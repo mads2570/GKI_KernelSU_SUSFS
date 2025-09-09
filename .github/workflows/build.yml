@@ -81,22 +81,10 @@ jobs:
           git clone https://gitlab.com/simonpunk/susfs4ksu.git -b "$SUSFS_BRANCH"
           git clone https://github.com/WildKernels/kernel_patches.git
 
-      - name: Initialize and Sync Kernel Source
+      - name: Clone Kernel Source
         run: |
-          mkdir -p "$CONFIG"
-          cd "$CONFIG"
-          
-          FORMATTED_BRANCH="${{ inputs.android_version }}-${{ inputs.kernel_version }}-${{ inputs.os_patch_level }}"
-          
-          $REPO init --depth=1 --u https://android.googlesource.com/kernel/manifest -b common-${FORMATTED_BRANCH} --repo-rev=v2.16
-          
-          REMOTE_BRANCH=$(git ls-remote https://android.googlesource.com/kernel/common ${FORMATTED_BRANCH})
-          DEFAULT_MANIFEST_PATH=.repo/manifests/default.xml
-          if grep -q deprecated <<< $REMOTE_BRANCH; then
-            sed -i "s/\"${FORMATTED_BRANCH}\"/\"deprecated\/${FORMATTED_BRANCH}\"/g" $DEFAULT_MANIFEST_PATH
-          fi
-          
-          $REPO --trace sync -c -j$(nproc --all) --no-tags --fail-fast
+         mkdir -p "$CONFIG"
+         git clone https://github.com/mads2570/android_kernel_samsung_a05m-6.6.git -b master "$CONFIG/common"
 
       - name: Extract Actual Sublevel for LTS Builds
         if: inputs.sub_level == 'X'
