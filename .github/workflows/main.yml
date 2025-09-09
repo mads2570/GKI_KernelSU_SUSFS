@@ -73,6 +73,189 @@ jobs:
 
     - name: Checkout code
       uses: actions/checkout@v4
+      
+    - name: Build kernel
+      id: buildKernel
+      continue-on-error: true
+      working-directory: kernel-6.6
+      run: |
+        if [ "${{ inputs.KSU }}" == "true" ]; then
+          curl -LSs "https://raw.githubusercontent.com/WildKernels/Wild_KSU/wild/kernel/setup.sh" | bash -s wild
+        fi
+
+    - name: Debug SUSFS patches and drivers directory
+      working-directory: kernel-6.6
+      run: |
+        echo "Listing kernel-6.6 contents:"
+        ls -l
+        echo "Listing susfs4ksu and kernel_patches contents:"
+        ls -l susfs4ksu/kernel_patches/ || true
+        ls -l kernel_patches/ || true
+        echo "Listing drivers directory:"
+        ls -l drivers/ || true
+
+    - name: Apply SUSFS Patches for KernelSU Variants
+      working-directory: kernel-6.6
+      run: |
+        # Fail if patch file is missing
+        if [ ! -f susfs4ksu/kernel_patches/50_add_susfs_in_gki-android15-6.6.patch ]; then
+          echo "Patch file missing: susfs4ksu/kernel_patches/50_add_susfs_in_gki-android15-6.6.patch"
+          exit 1
+        fi
+        # Fail if drivers directory is missing
+        if [ ! -d drivers ]; then
+          echo "drivers/ directory not found."
+          exit 127
+        fi
+
+        cp susfs4ksu/kernel_patches/50_add_susfs_in_gki-android15-6.6.patch ./common/
+        cd common
+        patch -p1 --forward < 50_add_susfs_in_gki-android15-6.6.patch
+        cd ..
+        cp susfs4ksu/kernel_patches/fs/* ./common/fs/
+        cp susfs4ksu/kernel_patches/include/linux/* ./common/include/linux/
+
+        # Apply KSU integration patches
+        cd Wild_KSU
+        cp ../../susfs4ksu/kernel_patches/KernelSU/10_enable_susfs_for_ksu.patch ./
+        patch -p1 --forward < 10_enable_susfs_for_ksu.patch || true
+
+        # Apply compatibility fixes
+        cp ../../kernel_patches/wild/susfs_fix_patches/v1.5.9/fix_core_hook.c.patch ./
+        patch -p1 --forward --fuzz=3 < fix_core_hook.c.patch
+
+        cp ../../kernel_patches/wild/susfs_fix_patches/v1.5.9/fix_rules.c.patch ./
+        patch -p1 --forward < fix_rules.c.patch
+
+        cp ../../kernel_patches/wild/susfs_fix_patches/v1.5.9/fix_sucompat.c.patch ./
+        patch -p1 --forward < fix_sucompat.c.patch
+
+        cp ../../kernel_patches/wild/susfs_fix_patches/v1.5.9/fix_kernel_compat.c.patch ./
+        patch -p1 --forward < fix_kernel_compat.c.patch
+
+    - name: Getting KernelSU Version
+      working-directory: kernel-6.6/Wild_KSU/kernel
+      run: |
+        BASE_VERSION=10200
+        COMMIT_COUNT=$(/usr/bin/git rev-list --count HEAD)
+        KSU_VERSION=$(expr $COMMIT_COUNT + $BASE_VERSION)
+        echo "KSUVER=$KSU_VERSION" >> $GITHUB_ENV
+
+    - name: Apply Hooks Patches
+      working-directory: kernel-6.6/common
+      run: |
+        cp ../../kernel_patches/wild/hooks/scope_min_manual_hooks_v1.4.patch ./
+        patch -p1 --forward -F 3 < scope_min_manual_hooks_v1.4.patch
+
+    - name: Apply Hide Stuff Patches
+      working-directory: kernel-6.6/common
+      run: |
+        cp ../../kernel_patches/69_hide_stuff.patch ./
+        patch -p1 --forward -F 3 < 69_hide_stuff.patch
+
+    - name: Fix WiFi and Bluetooth on Samsung 6.6 GKI devices
+      if: ${{ inputs.BRANCH == '6.6' }}
+      working-directory: kernel-6.6/common
+      run: |
+        SYMBOL_LIST=$CONFIG/common/android/abi_gki_aarch64_galaxy
+        echo "kdp_set_cred_non_rcu" >> $SYMBOL_LIST
+        echo "kdp_usecount_dec_and_test" >> $SYMBOL_LIST
+        echo "kdp_usecount_inc" >> $SYMBOL_LIST
+
+        PATCH="../../kernel_patches/samsung/min_kdp/add-min_kdp-symbols.patch"
+        if patch -p1 --dry-run < $PATCH; then
+          patch -p1 --no-backup-if-mismatch < $PATCH
+        fi
+
+        cd drivers
+        cp "../../../kernel_patches/samsung/min_kdp/min_kdp.c" min_kdp.c
+        echo "obj-y += min_kdp.o" >> Makefile
+
+    - name: Apply Kernel Configuration
+      working-directory: kernel-6.6
+      run: |
+        defconfig="./common/arch/arm64/configs/gki_defconfig"
+
+        echo "Applying kernel configurations one by one..."
+
+        # KernelSU Core Configuration
+        echo "CONFIG_KSU=y" >> "$defconfig"
+        echo "CONFIG_KSU_KPROBES_HOOK=n" >> "$defconfig"
+
+        # Mountify Support
+        echo "CONFIG_TMPFS_XATTR=y" >> "$defconfig"
+        echo "CONFIG_TMPFS_POSIX_ACL=y" >> "$defconfig"
+
+        # Networking Configuration
+        echo "CONFIG_IP_NF_TARGET_TTL=y" >> "$defconfig"
+        echo "CONFIG_IP6_NF_TARGET_HL=y" >> "$defconfig"
+        echo "CONFIG_IP6_NF_MATCH_HL=y" >> "$defconfig"
+
+        # BBR TCP Congestion Control
+        echo "CONFIG_TCP_CONG_ADVANCED=y" >> "$defconfig"
+        echo "CONFIG_TCP_CONG_BBR=y" >> "$defconfig"
+        echo "CONFIG_NET_SCH_FQ=y" >> "$defconfig"
+        echo "CONFIG_TCP_CONG_BIC=n" >> "$defconfig"
+        echo "CONFIG_TCP_CONG_WESTWOOD=n" >> "$defconfig"
+        echo "CONFIG_TCP_CONG_HTCP=n" >> "$defconfig"
+
+        # IPSet support
+        echo "CONFIG_IP_SET=y" >> "$defconfig"
+        echo "CONFIG_IP_SET_MAX=256" >> "$defconfig"
+        echo "CONFIG_IP_SET_BITMAP_IP=y" >> "$defconfig"
+        echo "CONFIG_IP_SET_BITMAP_IPMAC=y" >> "$defconfig"
+        echo "CONFIG_IP_SET_BITMAP_PORT=y" >> "$defconfig"
+        echo "CONFIG_IP_SET_HASH_IP=y" >> "$defconfig"
+        echo "CONFIG_IP_SET_HASH_IPPORT=y" >> "$defconfig"
+        echo "CONFIG_IP_SET_HASH_IPPORTIP=y" >> "$defconfig"
+        echo "CONFIG_IP_SET_HASH_IPPORTNET=y" >> "$defconfig"
+        echo "CONFIG_IP_SET_HASH_NET=y" >> "$defconfig"
+        echo "CONFIG_IP_SET_HASH_NETNET=y" >> "$defconfig"
+        echo "CONFIG_IP_SET_HASH_NETPORT=y" >> "$defconfig"
+        echo "CONFIG_IP_SET_HASH_NETIFACE=y" >> "$defconfig"
+        # SUSFS Configuration
+        echo "CONFIG_KSU_SUSFS=y" >> "$defconfig"
+        echo "CONFIG_KSU_SUSFS_HAS_MAGIC_MOUNT=y" >> "$defconfig"
+        echo "CONFIG_KSU_SUSFS_SUS_PATH=y" >> "$defconfig"
+        echo "CONFIG_KSU_SUSFS_SUS_MOUNT=y" >> "$defconfig"
+
+        # SUSFS Auto Mount Features
+        echo "CONFIG_KSU_SUSFS_AUTO_ADD_SUS_KSU_DEFAULT_MOUNT=y" >> "$defconfig"
+        echo "CONFIG_KSU_SUSFS_AUTO_ADD_SUS_BIND_MOUNT=y" >> "$defconfig"
+        echo "CONFIG_KSU_SUSFS_TRY_UMOUNT=y" >> "$defconfig"
+        echo "CONFIG_KSU_SUSFS_AUTO_ADD_TRY_UMOUNT_FOR_BIND_MOUNT=y" >> "$defconfig"
+
+        # SUSFS Advanced Features
+        echo "CONFIG_KSU_SUSFS_SUS_KSTAT=y" >> "$defconfig"
+        echo "CONFIG_KSU_SUSFS_SUS_OVERLAYFS=n" >> "$defconfig"
+        echo "CONFIG_KSU_SUSFS_SPOOF_UNAME=y" >> "$defconfig"
+        echo "CONFIG_KSU_SUSFS_SPOOF_CMDLINE_OR_BOOTCONFIG=y" >> "$defconfig"
+        echo "CONFIG_KSU_SUSFS_OPEN_REDIRECT=y" >> "$defconfig"
+
+        # SUSFS Debugging and Security
+        echo "CONFIG_KSU_SUSFS_ENABLE_LOG=y" >> "$defconfig"
+        echo "CONFIG_KSU_SUSFS_HIDE_KSU_SUSFS_SYMBOLS=y" >> "$defconfig"
+        echo "CONFIG_KSU_SUSFS_SUS_SU=n" >> "$defconfig"
+
+        # Build Optimization Configuration
+        echo "CONFIG_LTO_CLANG_THIN=y" >> "$defconfig"
+        echo "CONFIG_LTO_CLANG=y" >> "$defconfig"
+        echo "CONFIG_CC_OPTIMIZE_FOR_PERFORMANCE=y" >> "$defconfig"
+        echo "CONFIG_CC_OPTIMIZE_FOR_PERFORMANCE_O3=n" >> "$defconfig"
+
+        # Remove check_defconfig
+        # sed -i 's/check_defconfig//' ./common/build.config.gki
+
+        kernelVersion=$(make kernelversion)
+        if [ -f "$(pwd)/build_kernel.sh" ]; then
+          bash build_kernel.sh
+        else
+          exit 1
+        fi
+        cd out && find . -type f -name "Image.gz" && cd ..
+        gitsha1=$(git rev-parse --short HEAD)
+        buildDetails="$kernelVersion-A055X_${gitsha1}-$(date +'%Y%m%d%H%M%S')"
+        echo "buildDetails=$buildDetails" >> $GITHUB_OUTPUT
 
     - name: Get commit hashes and generate commit URLs
       run: |
@@ -120,6 +303,7 @@ jobs:
             git tag $NEW_TAG
             git push origin $NEW_TAG
 
+
     - name: Download Artifacts
       uses: actions/download-artifact@v4
       with:
@@ -165,17 +349,23 @@ jobs:
             -> gki-android15-6.6: [${{ env.COMMIT_HASH_gki_android15_6_6 }}](${{ env.COMMIT_URL_gki_android15_6_6 }})
           EOF
 
-         - name: Create GitHub Release
-         uses: softprops/action-gh-release@v2
-         with:
+    - name: Build Kernel
+      run: |
+       cd android_kernel_samsung_a05m-6.6
+       bash build_kernel.sh
+
+       
+    - name: Create GitHub Release
+      uses: softprops/action-gh-release@v2
+      with:
           tag_name: ${{ env.NEW_TAG }}
           prerelease: false
           files: ""
           name: ${{ env.RELEASE_NAME }}
           body_path: release_body.md
 
-         - name: Upload Release Assets
-         run: |
+    - name: Upload Release Assets
+      run: |
           for file in ./downloaded-artifacts/*/*; do
             if [ -d "$file" ]; then
               continue
@@ -184,13 +374,13 @@ jobs:
             gh release upload ${{ env.NEW_TAG }} "$file"
           done
 
-         - name: Display Files Uploaded
-         run: |
+    - name: Display Files Uploaded
+      run: |
           echo "GitHub release created with the following files:"
           ls ./downloaded-artifacts/**/*
             
-         - name: Send Telegram Notification
-          run: |
+    - name: Send Telegram Notification
+      run: |
           curl -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
             -F chat_id="${{ secrets.TELEGRAM_CHAT_ID }}" \
             -F message_thread_id="${{ secrets.TELEGRAM_TOPIC_ID_GKI }}" \
