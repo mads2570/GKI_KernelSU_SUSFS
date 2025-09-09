@@ -97,6 +97,7 @@ jobs:
     - name: Apply SUSFS Patches for KernelSU Variants
       working-directory: A05
       run: |
+        cd susfs4ksu/kernel_patches/
         # Fail if patch file is missing
         if [ ! -f susfs4ksu/kernel_patches/50_add_susfs_in_gki-android15-6.6.patch ]; then
           echo "Patch file missing: susfs4ksu/kernel_patches/50_add_susfs_in_gki-android15-6.6.patch"
