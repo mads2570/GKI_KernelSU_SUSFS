@@ -64,12 +64,6 @@ jobs:
     - name: Setup Gradle
       uses: gradle/actions/setup-gradle@v4
 
-    - name: Clone SUSFS and Patch Repos
-      working-directory: kernel-6.6
-      run: |
-        git clone https://github.com/WildKernels/AnyKernel3.git -b gki-2.0 || true
-        git clone https://gitlab.com/simonpunk/susfs4ksu.git -b gki-android15-6.6 || true
-        git clone https://github.com/WildKernels/kernel_patches.git || true
 
     - name: Checkout code
       uses: actions/checkout@v4
@@ -79,9 +73,15 @@ jobs:
       continue-on-error: true
       working-directory: kernel-6.6
       run: |
-        if [ "${{ inputs.KSU }}" == "true" ]; then
           curl -LSs "https://raw.githubusercontent.com/WildKernels/Wild_KSU/wild/kernel/setup.sh" | bash -s wild
-        fi
+
+    - name: Clone SUSFS and Patch Repos
+      working-directory: kernel-6.6
+      run: |
+        git clone https://github.com/WildKernels/AnyKernel3.git -b gki-2.0 || true
+        git clone https://gitlab.com/simonpunk/susfs4ksu.git -b gki-android15-6.6 || true
+        git clone https://github.com/WildKernels/kernel_patches.git || true
+
 
     - name: Debug SUSFS patches and drivers directory
       working-directory: kernel-6.6
@@ -108,8 +108,8 @@ jobs:
           exit 127
         fi
 
-        cp susfs4ksu/kernel_patches/50_add_susfs_in_gki-android15-6.6.patch ./common/
-        cd common
+        cp susfs4ksu/kernel_patches/50_add_susfs_in_gki-android15-6.6.patch ./kernel-6.6/
+        cd kernel-6.6
         patch -p1 --forward < 50_add_susfs_in_gki-android15-6.6.patch
         cd ..
         cp susfs4ksu/kernel_patches/fs/* ./common/fs/
@@ -148,16 +148,16 @@ jobs:
         patch -p1 --forward -F 3 < scope_min_manual_hooks_v1.4.patch
 
     - name: Apply Hide Stuff Patches
-      working-directory: kernel-6.6/common
+      working-directory: kernel-6.6
       run: |
         cp ../../kernel_patches/69_hide_stuff.patch ./
         patch -p1 --forward -F 3 < 69_hide_stuff.patch
 
     - name: Fix WiFi and Bluetooth on Samsung 6.6 GKI devices
       if: ${{ inputs.BRANCH == '6.6' }}
-      working-directory: kernel-6.6/common
+      working-directory: kernel-6.6
       run: |
-        SYMBOL_LIST=$CONFIG/common/android/abi_gki_aarch64_galaxy
+        SYMBOL_LIST=kernel-6.6/android/abi_gki_aarch64_galaxy
         echo "kdp_set_cred_non_rcu" >> $SYMBOL_LIST
         echo "kdp_usecount_dec_and_test" >> $SYMBOL_LIST
         echo "kdp_usecount_inc" >> $SYMBOL_LIST
@@ -174,7 +174,7 @@ jobs:
     - name: Apply Kernel Configuration
       working-directory: kernel-6.6
       run: |
-        defconfig="./common/arch/arm64/configs/gki_defconfig"
+        defconfig="./kernel-6.6/arch/arm64/configs/gki_defconfig"
 
         echo "Applying kernel configurations one by one..."
 
