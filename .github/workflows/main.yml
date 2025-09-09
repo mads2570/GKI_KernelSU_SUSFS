@@ -97,7 +97,6 @@ jobs:
     - name: Apply SUSFS Patches for KernelSU Variants
       working-directory: A05
       run: |
-        cd kernel-6.6
         # Fail if patch file is missing
         if [ ! -f susfs4ksu/kernel_patches/50_add_susfs_in_gki-android15-6.6.patch ]; then
           echo "Patch file missing: susfs4ksu/kernel_patches/50_add_susfs_in_gki-android15-6.6.patch"
@@ -109,12 +108,12 @@ jobs:
           exit 127
         fi
 
-        cp susfs4ksu/kernel_patches/50_add_susfs_in_gki-android15-6.6.patch ./kernel-6.6/
+        cp susfs4ksu/kernel_patches/50_add_susfs_in_gki-android15-6.6.patch ./kernel-6.6
         cd kernel-6.6
         patch -p1 --forward < 50_add_susfs_in_gki-android15-6.6.patch
         cd ..
-        cp susfs4ksu/kernel_patches/fs/* ./kernel-6.6/fs/
-        cp susfs4ksu/kernel_patches/include/linux/* ./kernel-6.6/include/linux/
+        cp susfs4ksu/kernel_patches/fs/* ./kernel-6.6/fs
+        cp susfs4ksu/kernel_patches/include/linux/* ./kernel-6.6/include/linux
 
         # Apply KSU integration patches
         cd Wild_KSU
