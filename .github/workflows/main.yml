@@ -76,7 +76,7 @@ jobs:
     - name: Clone SUSFS and Patch Repos
       working-directory: A05
       run: |
-        cd kernel-6.6
+        cd A05
         git clone https://github.com/WildKernels/AnyKernel3.git -b gki-2.0 || true
         git clone https://gitlab.com/simonpunk/susfs4ksu.git -b gki-android15-6.6 || true
         git clone https://github.com/WildKernels/kernel_patches.git || true
@@ -85,8 +85,8 @@ jobs:
     - name: Debug SUSFS patches and drivers directory
       working-directory: A05
       run: |
-        cd kernel-6.6
-        echo "Listing kernel-6.6 contents:"
+        cd A05
+        echo "Listing A05 contents:"
         ls -l
         echo "Listing susfs4ksu and kernel_patches contents:"
         ls -l susfs4ksu/kernel_patches/ || true
@@ -97,7 +97,7 @@ jobs:
     - name: Apply SUSFS Patches for KernelSU Variants
       working-directory: A05
       run: |
-        cd susfs4ksu/kernel_patches/
+        cd A05
         # Fail if patch file is missing
         if [ ! -f susfs4ksu/kernel_patches/50_add_susfs_in_gki-android15-6.6.patch ]; then
           echo "Patch file missing: susfs4ksu/kernel_patches/50_add_susfs_in_gki-android15-6.6.patch"
@@ -146,14 +146,12 @@ jobs:
     - name: Apply Hooks Patches
       working-directory: A05
       run: |
-        cd kernel-6.6
         cp ../../kernel_patches/wild/hooks/scope_min_manual_hooks_v1.4.patch ./
         patch -p1 --forward -F 3 < scope_min_manual_hooks_v1.4.patch
 
     - name: Apply Hide Stuff Patches
       working-directory: A05
       run: |
-        cd kernel-6.6
         cp ../../kernel_patches/69_hide_stuff.patch ./
         patch -p1 --forward -F 3 < 69_hide_stuff.patch
 
@@ -161,7 +159,6 @@ jobs:
       if: ${{ inputs.BRANCH == '6.6' }}
       working-directory: A05
       run: |
-        cd kernel-6.6
         SYMBOL_LIST=android/abi_gki_aarch64_galaxy
         echo "kdp_set_cred_non_rcu" >> $SYMBOL_LIST
         echo "kdp_usecount_dec_and_test" >> $SYMBOL_LIST
