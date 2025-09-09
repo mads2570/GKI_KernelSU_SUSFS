@@ -76,12 +76,12 @@ jobs:
       id: buildKernel
       continue-on-error: true
       run: |
-          cd kernel-6.6
+          cd android_kernel_samsung_a05m-6.6/kernel-6.6
           curl -LSs "https://raw.githubusercontent.com/WildKernels/Wild_KSU/wild/kernel/setup.sh" | bash -s wild
     
     - name: Apply SUSFS Patches for KernelSU Variants
       run: |
-          cd kernel-6.6
+          cd android_kernel_samsung_a05m-6.6
           
           # Apply core SUSFS patches
           cp ../susfs4ksu/kernel_patches/50_add_susfs_in_gki-${{ inputs.android_version }}-${{ inputs.kernel_version }}.patch ./kernel-6.6/
@@ -119,13 +119,13 @@ jobs:
           
     - name: Apply Hooks Patches
       run: |
-          cd "$CONFIG/kernel-6.6"
+          cd kernel-6.6
           cp ../../kernel_patches/wild/hooks/scope_min_manual_hooks_v1.4.patch ./
           patch -p1 --forward -F 3 < scope_min_manual_hooks_v1.4.patch
 
     - name: Apply Hide Stuff Patches
       run: |
-          cd "$CONFIG/kernel-6.6"
+          cd kernel-6.6
           cp ../../kernel_patches/69_hide_stuff.patch ./
           patch -p1 --forward -F 3 < 69_hide_stuff.patch
 
@@ -136,7 +136,7 @@ jobs:
           echo "kdp_usecount_dec_and_test" >> $SYMBOL_LIST
           echo "kdp_usecount_inc" >> $SYMBOL_LIST
           
-          cd $CONFIG/kernel-6.6
+          cd kernel-6.6
           PATCH="../../kernel_patches/samsung/min_kdp/add-min_kdp-symbols.patch"
           if patch -p1 --dry-run < $PATCH; then
             patch -p1 --no-backup-if-mismatch < $PATCH
@@ -148,8 +148,9 @@ jobs:
 
     - name: Apply Kernel Configuration
       run: |
-        cd "$CONFIG"
-          
+
+
+    
         defconfig="./kernel-6.6/arch/arm64/configs/gki_defconfig"
           
         echo "Applying kernel configurations one by one..."
