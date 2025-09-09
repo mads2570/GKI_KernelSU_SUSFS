@@ -64,9 +64,6 @@ jobs:
     - name: Setup Gradle
       uses: gradle/actions/setup-gradle@v4
 
-
-    - name: Checkout code
-      uses: actions/checkout@v4
       
     - name: Build kernel
       id: buildKernel
