@@ -44,7 +44,8 @@ jobs:
     uses: ./.github/workflows/build.yml
     secrets: inherit
     with:
-      android_version: "android15"
-      kernel_version: "6.6"
-      sub_level: ${{ matrix.sub_level }}
-      os_patch_level: ${{ matrix.os_patch_level }}
+     android_version: "android15"
+     kernel_version: "6.6"
+     kernel_repo: "https://github.com/mads2570/android_kernel_samsung_a05m-6.6.git"   # <--- Add this line
+     sub_level: ${{ matrix.sub_level }}
+     os_patch_level: ${{ matrix.os_patch_level }}
