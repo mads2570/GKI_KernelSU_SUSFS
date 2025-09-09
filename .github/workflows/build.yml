@@ -84,7 +84,7 @@ jobs:
       - name: Clone Kernel Source
         run: |
          mkdir -p "$CONFIG"
-         git clone https://github.com/mads2570/android_kernel_samsung_a05m-6.6/kernel-6.6.git -b master "$CONFIG/common"
+         git clone https://github.com/mads2570/android_kernel_samsung_a05m-6.6.git -b master "$CONFIG/common"
 
       - name: Extract Actual Sublevel for LTS Builds
         if: inputs.sub_level == 'X'
