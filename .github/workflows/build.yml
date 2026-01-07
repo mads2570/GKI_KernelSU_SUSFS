@@ -117,9 +117,9 @@ jobs:
       run: |
         FORMATTED_BRANCH="${{ inputs.android_version }}-${{ inputs.kernel_version }}-${{ inputs.os_patch_level }}"
 
-        repo init -u https://android.googlesource.com/kernel/manifest -b common-${FORMATTED_BRANCH} --repo-rev=v2.16 --depth=1
+        repo init -u https://github.com/mads2570/android_kernel_msm-6.1_nothing_sm7635.git -b sm7635/v/mr-${FORMATTED_BRANCH}  --depth=1
 
-        REMOTE_BRANCH=$(git ls-remote https://android.googlesource.com/kernel/common ${FORMATTED_BRANCH})
+        REMOTE_BRANCH=$(git ls-remote https://github.com/mads2570/android_kernel_msm-6.1_nothing_sm7635.git -b sm7635/v/mr ${FORMATTED_BRANCH})
         DEFAULT_MANIFEST_PATH=.repo/manifests/default.xml
         if grep -q deprecated <<< $REMOTE_BRANCH; then
           sed -i "s/\"${FORMATTED_BRANCH}\"/\"deprecated\/${FORMATTED_BRANCH}\"/g" $DEFAULT_MANIFEST_PATH
